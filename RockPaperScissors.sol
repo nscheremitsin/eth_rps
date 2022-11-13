@@ -16,10 +16,12 @@ contract RockPaperScissors {
     struct Game {
         bool isPending;
         address playingWith;
-        bytes32 commitedChoice;
+        bytes32 committedChoice;
         Choice revealedChoice;
         string result;
     }
+
+    event Log(address indexed sender, string message);
 
     mapping(address => Game) games;
     mapping(Choice => string) choiceNames;
@@ -30,6 +32,10 @@ contract RockPaperScissors {
         choiceNames[Choice.SCISSORS] = "scissors";
     }
 
+    function emitLog(string memory message) private {
+        emit Log(msg.sender, message);
+    }
+
     function isPlayerHasPendingGame(address player) private view returns(bool) {
         return games[player].isPending;
     }
@@ -38,8 +44,8 @@ contract RockPaperScissors {
         return games[player].playingWith != address(0);
     }
 
-    function isPlayerCommited(address player) private view returns(bool) {
-        return games[player].commitedChoice != bytes32(0);
+    function isPlayerCommitted(address player) private view returns(bool) {
+        return games[player].committedChoice != bytes32(0);
     }
 
     function isPlayerRevealed(address player) private view returns(bool) {
@@ -79,10 +85,10 @@ contract RockPaperScissors {
                 || senderChoice == Choice.ROCK && opponentChoice == Choice.SCISSORS 
                 || senderChoice == Choice.SCISSORS && opponentChoice == Choice.PAPER;
             senderResult = string.concat(
-                "You ", isSenderWon ? "won" : "lost", " with ", senderChoiceName, " against ", opponentChoiceName
+                "You have ", isSenderWon ? "won" : "lost", " with ", senderChoiceName, " against ", opponentChoiceName
             );
             opponentResult = string.concat(
-                "You ", isSenderWon ? "lost" : "won", " with ", opponentChoiceName, " against ", senderChoiceName
+                "You have ", isSenderWon ? "lost" : "won", " with ", opponentChoiceName, " against ", senderChoiceName
             );
         }
 
@@ -106,6 +112,7 @@ contract RockPaperScissors {
 
     function start() public CanPlayNewGame {
         games[msg.sender].isPending = true;
+        emitLog("Started a new game and waiting for the opponent");
     }
 
     function cancel() public {
@@ -114,6 +121,7 @@ contract RockPaperScissors {
             "You do not have a pending game (maybe because someone has joined or left the game)"
         );
         delete games[msg.sender];
+        emitLog("Canceled a new game");
     }
 
     function join(address initiator) public CanPlayNewGame {
@@ -121,29 +129,33 @@ contract RockPaperScissors {
         games[initiator].isPending = false;
         games[initiator].playingWith = msg.sender;
         games[msg.sender].playingWith = initiator;
+        emitLog("Joined the game");
     }
 
     function exit() public CurrentlyPlaying {
         delete games[games[msg.sender].playingWith];
         delete games[msg.sender];
+        emitLog("Exited the game");
     }
 
     function commit(bytes32 hash) public CurrentlyPlaying {
-        require(!isPlayerCommited(msg.sender), "You have commited already");
-        games[msg.sender].commitedChoice = hash;
+        require(!isPlayerCommitted(msg.sender), "You have committed already");
+        games[msg.sender].committedChoice = hash;
+        emitLog("Committed the choice");
     }
 
     function reveal(Choice choice, uint num) public CurrentlyPlaying {
         require(!isPlayerRevealed(msg.sender), "You have revealed already");
         require(choice != Choice.DEFAULT, "You can not use default choice");
-        require(isPlayerCommited(msg.sender), "You have not commited yet");
+        require(isPlayerCommitted(msg.sender), "You have not committed yet");
         Game storage senderGame = games[msg.sender];
-        require(isPlayerCommited(senderGame.playingWith), "Your opponent has not commited yet");
+        require(isPlayerCommitted(senderGame.playingWith), "Your opponent has not committed yet");
         require(
-            calcHash(choice, num) == senderGame.commitedChoice, 
-            "Your revealed data does not correspond to the commited data"
+            calcHash(choice, num) == senderGame.committedChoice, 
+            "Your revealed data does not correspond to the committed data"
         );
         senderGame.revealedChoice = choice;
+        emitLog("Revealed the choice");
     }
 
     function result() public CurrentlyPlaying returns(string memory) {
@@ -156,6 +168,7 @@ contract RockPaperScissors {
         string memory res = senderGame.result;
         // Game data for sender is deleted (opponent can still view the result if he hasn't yet)
         delete games[msg.sender];
+        emitLog("Got the result and finished the game");
         return res;
     }
 }

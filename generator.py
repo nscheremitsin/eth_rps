@@ -1,4 +1,4 @@
-def f(choice: str):
+def gen(choice: str):
     d = {
         'r': 1,
         'p': 2,
